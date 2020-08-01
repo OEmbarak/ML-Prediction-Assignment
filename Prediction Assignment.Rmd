@@ -1,0 +1,171 @@
+---
+title: 'Practical Machine Learning Project : Prediction Assignment Writeup'
+author: "Ossama Embarak"
+date: "8/1/2020"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r , echo=TRUE}
+library(knitr)
+library(caret)
+library(rpart)
+library(rpart.plot)
+library(rattle)
+library(randomForest)
+library(corrplot)
+set.seed(12345)
+
+```
+
+
+Read and Clean data set 
+
+```{r , echo=TRUE}
+
+  #Training Data loading,  cleaning and selection 
+  training  <- read.csv("pml-training.csv", na.strings = c("NA","#DIV/0!",""))
+  #Testi Data loading, cleaning and selection 
+  testing   <- read.csv("pml-testing.csv", na.strings = c("NA","#DIV/0!",""))
+
+# Create a partition with the training dataset 
+inTrain  <- createDataPartition(training$classe, p=0.7, list=FALSE)
+TrainSet <- training[inTrain, ]
+TestSet  <- training[-inTrain, ]
+print(dim(TrainSet))
+print(dim(TestSet))
+
+# Remove variables with Nearly Zero Variance
+NZV <- nearZeroVar(TrainSet)
+TrainSet <- TrainSet[, -NZV]
+TestSet  <- TestSet[, -NZV]
+print(dim(TrainSet))
+print(dim(TestSet))
+
+
+
+# Remove variables that are mostly NA
+AllNA    <- sapply(TrainSet, function(x) mean(is.na(x))) > 0.95
+TrainSet <- TrainSet[, AllNA==FALSE]
+TestSet  <- TestSet[, AllNA==FALSE]
+print(dim(TrainSet))
+print(dim(TestSet))
+
+
+# Remove identification only variables (columns 1 to 5)
+TrainSet <- TrainSet[, -(1:5)]
+TestSet  <- TestSet[, -(1:5)]
+print(dim(TrainSet))
+print(dim(TestSet))
+
+```
+
+## A. Model Building using random forest
+
+```{r , echo=TRUE}
+ # model fit
+set.seed(12345)
+controlRF <- trainControl(method="cv", number=3, verboseIter=FALSE)
+modFitRandForest <- train(classe ~ ., data=TrainSet, method="rf", trControl=controlRF)
+modFitRandForest$finalModel
+
+```
+
+# Apply prediction on Test dataset
+```{r , echo=TRUE}
+Churn <- as.factor(TestSet$classe)
+predictRandForest <- predict(modFitRandForest, newdata=TestSet)
+confMatRandForest <- confusionMatrix(predictRandForest, Churn)
+confMatRandForest
+
+```
+
+# Plot matrix results
+```{r , echo=TRUE}
+plot(confMatRandForest$table, col = confMatRandForest$byClass, main = paste("Random Forest - Accuracy =",
+                  round(confMatRandForest$overall['Accuracy'], 4)))
+
+```
+
+
+
+# B. Build a model using Decision Trees
+```{r , echo=TRUE}
+
+set.seed(12345)
+modFitDecTree <- rpart(classe ~ ., data=TrainSet, method="class")
+fancyRpartPlot(modFitDecTree)
+
+```
+
+
+
+# Prediction on Test dataset
+
+```{r , echo=TRUE}
+Churn <- as.factor(TestSet$classe)
+predictDecTree <- predict(modFitDecTree, newdata=TestSet, type="class")
+confMatDecTree <- confusionMatrix(predictDecTree, Churn)
+confMatDecTree 
+
+```
+
+
+# Plot matrix results                  
+```{r , echo=TRUE}
+ plot(confMatDecTree$table, col = confMatDecTree$byClass, 
+     main = paste("Decision Tree - Accuracy =", round(confMatDecTree$overall['Accuracy'], 4)))
+
+```
+
+
+## c) Build a model: Generalized Boosted Model
+
+```{r , echo=TRUE}
+set.seed(12345)
+controlGBM <- trainControl(method = "repeatedcv", number = 5, repeats = 1)
+modFitGBM  <- train(classe ~ ., data=TrainSet, method = "gbm", trControl = controlGBM, verbose = FALSE)
+modFitGBM$finalModel
+
+```
+
+
+# prediction on Test dataset
+```{r , echo=TRUE}
+Churn <- as.factor(TestSet$classe)
+predictGBM <- predict(modFitGBM, newdata=TestSet)
+confMatGBM <- confusionMatrix(predictGBM, Churn)
+confMatGBM
+
+```
+
+
+# Plot matrix results
+```{r , echo=TRUE}
+ plot(confMatGBM$table, col = confMatGBM$byClass, 
+     main = paste("GBM - Accuracy =", round(confMatGBM$overall['Accuracy'], 4)))
+                  
+
+```
+
+## Applying the Selected Model to the Test Data
+
+Regression models accuracy are :
+
+    Random Forest : 0.998  
+    Decision Tree : 0.7247
+    GBM           : 0.9879          
+
+                
+```{r , echo=TRUE}
+ predictTEST <- predict(modFitRandForest, newdata=testing)
+ predictTEST
+
+```
+
